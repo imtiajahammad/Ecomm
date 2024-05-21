@@ -250,10 +250,47 @@ dotnet new gitignore
 ```
 ---
 17. Now lets create a **MVC** applicaton where we can consume the **OrderService**. Lets Create a **MVC** project with **dotnet6.0** named **ClientPlatform**
-18. 
+18. Add a new folder **DataAccess** and add a new class called **OrderDetailsProvider**
+```
+public class OrderDetailsProvider : IOrderDetailsProvider
+{
+    private readonly IHttpClientFactory _httpClientFactory;
 
-
+    public OrderDetailsProvider(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+    }
+    public async Task<OrderDetail[]> Get()
+    {
+        using var client = _httpClientFactory.CreateClient("order");
+        var response = await client.GetAsync("/api/order");
+        var data = await response.Content.ReadAsByteArrayAsync();
+        return JsonSerializer.Deserialize<OrderDetail[]>(data);
+    }
+}
+```
+19. Create a folder for models **Models** and add a class **OrderDetail**
+```
+public class OrderDetail
+{
+    public string User { get; set; }
+    public string Name { get; set; }
+    public int Quantity { get; set; }
+}
+```
+20. Add injection for OrderDetailsProvider with HttpClientFacotry in the program file
+```
+builder.Services.AddHttpClient("order", config =>
+    config.BaseAddress = new System.Uri("https://localhost:7177/"));
+```
+21. Add a new class called **OrderDetailsProvider** in **DataAccess** folder
+```
+public interface IOrderDetailsProvider
+{
+    Task<OrderDetail[]> Get();
+}
+```
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  
-- https://www.youtube.com/watch?v=3AKqtggkaIA&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=2&ab_channel=DotNetCoreCentral
+- https://www.youtube.com/watch?v=3AKqtggkaIA&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=2&ab_channel=DotNetCoreCentral 13.08
