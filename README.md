@@ -431,8 +431,90 @@ And update the query
         }
     }
 ```
-26. 
+---
+RabbitMQ:   
+- What is a Message Broker
+    - You can think of a message broker like a post office. 
+    - Its main responsibility is to broker messages between publisher and subscribers
+    - Once a message is received by a message broker from a producer, it routes the message to a subscriber. 
+    - Message broker pattern is one of the most useful pattern when it comes to ddecoupling microservices.
+    - **Producer**: An application responsible for sending message
+    - **Consumer**: An application listening for messages.
+    - **Queue**: Storage where messages are stored by the broker.
+- What is RabbitMQ
+    - RabbitMQ is an open source message broker.
+    - It is probably one of the most widely used message broker out there
+    - RabbitMQ is extremely lightweight and very easy to deploy
+    - RabbitMQ supports multiple protocols
+    - RabbitMQ is highly available and scalable
+    - RabbitMQ supports multiple operating systems
+- Protocols Supported:
+    - **AMQP 0-9-1**: a binary messaging protocol specification. This is the core protocol specification implemented in RabbitMQ. All other protocol support in RabbitMQ is through Plugins
+    - **STOMP**: A text based message protocol
+    - **MQTT**: Binary protocol focusing mainly on Publish/Subscribe scenarios
+    - **AMQP 1.0**
+    - **HTTP and WebSocket**
+
+26. Let's create a console application **RabbitMQ.Producer** in the same solution
+27. Now, let't create a docker image for **RabbitMQ** and open up the browser for ***http://localhost:15672/#/** with **guest** username and **guest** password
+```
+docker images
+docker run -d --hostname my-rabbit --name ecomm-rabbit -p 15672:15672 -p 5672:5672 rabbitmq:3-management
+docker logs -f e67
+```
+28. Search for the package **RabbitMQ.Client** and install on **RabbitMQ.Producer**
+29. Now add the following codes in **Program.cs**
+```
+var factory = new ConnectionFactory
+    {
+        Uri = new Uri("amqp://guest:guest@localhost:5672")
+    };
+using var connection = factory.CreateConnection();
+using var channel = connection.CreateModel();
+channel.QueueDeclare("demo-queue",
+                      durable: true,
+                      exclusive: false,
+                      autoDelete: false,
+                      arguments: null);
+var message = new { Name = "Producer", Message = "Hello!" };
+var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+channel.BasicPublish("", "demo-queue", null, body);
+```
+For using JsonConvert.SerializeObject, install the package Newtonsoft.json
+30. Now create another console application named **RabbitMQ.Consumer** on the same solution. Also add the package **RabbitMQ.Client**
+31. Now add the following codes into **Program.cs**
+```
+var factory = new ConnectionFactory
+{
+    Uri = new Uri("amqp://guest:guest@localhost:5672")
+};
+using var connection = factory.CreateConnection();
+using var channel = connection.CreateModel();
+channel.QueueDeclare("demo-queue",
+                      durable: true,
+                      exclusive: false,
+                      autoDelete: false,
+                      arguments: null);
+
+
+var consumer = new EventingBasicConsumer(channel);
+consumer.Received += (sender, e) =>
+{
+    var body = e.Body.ToArray();
+    var message = Encoding.UTF8.GetString(body);
+    Console.WriteLine($"{message}");
+};
+
+channel.BasicConsume("demo-queue", true, consumer);
+Console.ReadLine();
+```
+32. Now run the consumer first, it will create the queue in the RabbitMQ server; then run the producer, it will send a message into the queue and you can see it coming in the queue. And finally run the consumer again, you will see the message is received and being print in the console according to the code.
+---
+33. 
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  
-- https://www.youtube.com/watch?v=3AKqtggkaIA&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=2&ab_channel=DotNetCoreCentral 13.08
+- https://www.youtube.com/watch?v=3AKqtggkaIA&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=2&ab_channel=DotNetCoreCentral
+- https://www.youtube.com/watch?v=w84uFSwulBI&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=3&ab_channel=DotNetCoreCentral
+- https://www.youtube.com/watch?v=Cm2psU-zN90&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=4&ab_channel=DotNetCoreCentral
