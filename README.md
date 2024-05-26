@@ -252,34 +252,51 @@ dotnet new gitignore
 17. Now lets create a **MVC** applicaton where we can consume the **OrderService**. Lets Create a **MVC** project with **dotnet6.0** named **ClientPlatform**
 18. Add a new folder **DataAccess** and add a new class called **OrderDetailsProvider**
 ```
-public class OrderDetailsProvider : IOrderDetailsProvider
-{
-    private readonly IHttpClientFactory _httpClientFactory;
+	public class OrderDetailsProvider : IOrderDetailsProvider
+    {
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<OrderDetailsProvider> _logger;
 
-    public OrderDetailsProvider(IHttpClientFactory httpClientFactory)
-    {
-        _httpClientFactory = httpClientFactory;
+
+        public OrderDetailsProvider(IHttpClientFactory httpClientFactory, ILogger<OrderDetailsProvider> logger)
+        {
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
+        }
+        public async Task<OrderDetail[]> Get()
+        {
+            try
+            {
+                using var client = _httpClientFactory.CreateClient("order");
+                var response = await client.GetAsync("/api/order");
+                var data = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<OrderDetail[]>(data);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError($"Error getting order detials, ex:{ex}");
+                return Array.Empty<OrderDetail>();
+            }
+        }
     }
-    public async Task<OrderDetail[]> Get()
-    {
-        using var client = _httpClientFactory.CreateClient("order");
-        var response = await client.GetAsync("/api/order");
-        var data = await response.Content.ReadAsByteArrayAsync();
-        return JsonSerializer.Deserialize<OrderDetail[]>(data);
-    }
-}
 ```
 19. Create a folder for models **Models** and add a class **OrderDetail**
 ```
-public class OrderDetail
-{
-    public string User { get; set; }
-    public string Name { get; set; }
-    public int Quantity { get; set; }
-}
+	public class OrderDetail
+	{
+
+        [JsonPropertyName("User")]
+        public string User { get; set; }
+        [JsonPropertyName("Name")]
+        public string Name { get; set; }
+        [JsonPropertyName("Quantity")]
+        public int Quantity { get; set; }
+    }
 ```
 20. Add injection for OrderDetailsProvider with HttpClientFacotry in the program file
 ```
+builder.Services.AddSingleton<IOrderDetailsProvider, OrderDetailsProvider>();
+
 builder.Services.AddHttpClient("order", config =>
     config.BaseAddress = new System.Uri("https://localhost:7177/"));
 ```
@@ -290,6 +307,77 @@ public interface IOrderDetailsProvider
     Task<OrderDetail[]> Get();
 }
 ```
+22. Add the method for the **HomeController** 
+```
+public class HomeController : Controller
+{
+    private readonly IOrderDetailsProvider _orderDetailsProvider;
+    private readonly ILogger<HomeController> _logger;
+
+    public HomeController(ILogger<HomeController> logger, IOrderDetailsProvider orderDetailsProvider)
+    {
+        _logger = logger;
+        _orderDetailsProvider = orderDetailsProvider;
+    }
+
+    public async Task<IActionResult> Index()
+    {
+        var orderDetails = await _orderDetailsProvider.Get();
+        return View(orderDetails);
+    }
+}
+```
+23. Edit the View **Index.cshtml**
+```
+@model ClientPlatform.Models.OrderDetail[]
+@{
+    ViewData["Title"] = "Home Page - Ecomm";
+}
+<style>
+    table {
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    td, th {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+    }
+
+    tr:nth-child(even) {
+        background-color: #dddddd;
+    }
+</style>
+<div class="text-center">
+    <h1 class="display-4">Welcome</h1>
+    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+</div>
+
+<div class="text-center">
+    <table>
+        <thead>
+            <tr >
+                <th>User Name</th>
+                <th>Product Name</th>
+                <th>Quantity</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr >
+                    <td>@item.User </td>
+                    <td>@item.Name </td>
+                    <td>@item.Quantity</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+```
+24. 
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  
