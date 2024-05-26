@@ -377,7 +377,61 @@ public class HomeController : Controller
     </table>
 </div>
 ```
-24. 
+24. If you check the query of fething the orderDetails, you might find that there is a joining with the table **Product** which is not recommended. We can avoid this scenario by adding a new column into **OrderDetails** table called **Name** and remove the joining with the **Product** table.
+```
+ALTER TABLE [dbo].[OrderDetails]
+    ADD [ProductName] NVARCHAR (50) NULL;
+```
+Also edit the existing data and add productNames.   
+Update the query in **OrderService** in **OrderDetailsProvider**
+```
+public class OrderDetailsProvider : IOrderDetailsProvider
+    {
+        private readonly string _connectionString;
+        public OrderDetailsProvider(string connectionString)
+        {
+            _connectionString = connectionString;
+        }
+        public OrderDetail[] Get()
+        {
+            using var connection = new SqlConnection(_connectionString);
+
+           return connection.Query<OrderDetail>(@"
+                                                    SELECT u.Name AS [USER], od.ProductName AS Name, od.Quantity    from [Order] o
+													JOIN [OrderDetails] od ON o.Id = od.OrderId
+													JOIN [User] u ON o.UserId = u.Id"
+            )
+                .ToArray();
+        }
+    }
+```
+25. Similarly, with 24, fething **Orders** should not have a joining query with the **User** table. Instead we can add a new column with **UserName** to avoid this scenario
+```
+ALTER TABLE [dbo].[Order]
+    ADD [UserName] NVARCHAR (50) NULL;
+```
+Also edit the **Order** table and add the **UserNames** in the table.
+And update the query
+```
+	public class OrderDetailsProvider : IOrderDetailsProvider
+    {
+        private readonly string _connectionString;
+        public OrderDetailsProvider(string connectionString)
+        {
+            _connectionString = connectionString;
+        }
+        public OrderDetail[] Get()
+        {
+            using var connection = new SqlConnection(_connectionString);
+
+           return connection.Query<OrderDetail>(@"SELECT o.UserName AS [USER], od.ProductName AS Name, od.Quantity from [Order] o
+													JOIN [OrderDetails] od ON o.Id = od.OrderId"
+            )
+                .ToArray();
+        }
+    }
+```
+26. 
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  
