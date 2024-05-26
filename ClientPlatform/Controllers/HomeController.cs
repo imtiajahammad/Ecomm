@@ -1,21 +1,25 @@
 ﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using ClientPlatform.Models;
+using ClientPlatform.DataAccess;
 
 namespace ClientPlatform.Controllers;
 
 public class HomeController : Controller
 {
+    private readonly IOrderDetailsProvider _orderDetailsProvider;
     private readonly ILogger<HomeController> _logger;
 
-    public HomeController(ILogger<HomeController> logger)
+    public HomeController(ILogger<HomeController> logger, IOrderDetailsProvider orderDetailsProvider)
     {
         _logger = logger;
+        _orderDetailsProvider = orderDetailsProvider;
     }
 
-    public IActionResult Index()
+    public async Task<IActionResult> Index()
     {
-        return View();
+        var orderDetails = await _orderDetailsProvider.Get();
+        return View(orderDetails);
     }
 
     public IActionResult Privacy()
