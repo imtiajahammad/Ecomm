@@ -15,10 +15,8 @@ namespace OrderService
         {
             using var connection = new SqlConnection(_connectionString);
 
-           return connection.Query<OrderDetail>(@"SELECT u.Name AS [USER], p.Name AS Name, od.Quantity from [Order] o
-													JOIN [OrderDetails] od ON o.Id = od.OrderId
-													JOIN Product p on od.ProductId = p.Id
-													JOIN [User] u ON o.UserId = u.Id"
+           return connection.Query<OrderDetail>(@"SELECT o.UserName AS [USER], od.ProductName AS Name, od.Quantity from [Order] o
+													JOIN [OrderDetails] od ON o.Id = od.OrderId"
             )
                 .ToArray();
         }
