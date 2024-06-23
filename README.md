@@ -511,10 +511,259 @@ Console.ReadLine();
 ```
 32. Now run the consumer first, it will create the queue in the RabbitMQ server; then run the producer, it will send a message into the queue and you can see it coming in the queue. And finally run the consumer again, you will see the message is received and being print in the console according to the code.
 ---
-33. 
+33. Now go to **RabbitMQ.Producer**, open up **program.cs** file and take the following code from that class
+    ```
+    channel.QueueDeclare("demo-queue",
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null);
+    var message = new { Name = "Producer", Message = "Hello!" };
+    var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+    channel.BasicPublish("", "demo-queue", null, body);
+    ```
+And now create a new static class **QueueProducer.cs** and place the code here into a static funciton
+    ```
+    public static void Publish(IModel channel)
+    {
+        channel.QueueDeclare("demo-queue",
+                      durable: true,
+                      exclusive: false,
+                      autoDelete: false,
+                      arguments: null);
+        var message = new { Name = "Producer", Message = "Hello!" };
+        var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+        channel.BasicPublish("", "demo-queue", null, body);
+    }
+    ```
+Now call that function from **program.cs** file by the following code
+    ```
+    var factory = new ConnectionFactory
+    {
+        Uri = new Uri("amqp://guest:guest@localhost:5672")
+    };
+    using var connection = factory.CreateConnection();
+    using var channel = connection.CreateModel();
+    QueueProducer.Publish(channel);
+    ```
+34. To publish multiple messages at the same time, let's modify the **QueueProducer.cs**
+    ```
+    public static class QueueProducer
+    {
+        public static void Publish(IModel channel)
+        {
+            channel.QueueDeclare("demo-queue",
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null);
+            
+            var count = 0;
+            while(true)
+            {
+                var message = new { Name = "Producer", Message = $"Hello! Count:{count}" };
+                var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+                channel.BasicPublish("", "demo-queue", null, body);
+                count++;
+                Thread.Sleep(1000);
+            }
+
+        }
+    }    
+    ```
+35. Let's go to **RabbitMQ.Consumer** and open up the **program.cs** file and take the following code portion
+    ```
+        channel.QueueDeclare("demo-queue",
+                            durable: true,
+                            exclusive: false,
+                            autoDelete: false,
+                            arguments: null);
+
+
+        var consumer = new EventingBasicConsumer(channel);
+        consumer.Received += (sender, e) =>
+        {
+            var body = e.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            Console.WriteLine($"{message}");
+        };
+
+        channel.BasicConsume("demo-queue", true, consumer);
+        Console.ReadLine();
+    ```
+    And create a new class **QueueConsumer.cs** and add the taken code into the following static method
+    ```
+        public static class QueueConsumer
+        {
+            public static void Consume(IModel channel)
+            {
+                channel.QueueDeclare("demo-queue",
+                            durable: true,
+                            exclusive: false,
+                            autoDelete: false,
+                            arguments: null);
+
+
+                var consumer = new EventingBasicConsumer(channel);
+                consumer.Received += (sender, e) =>
+                {
+                    var body = e.Body.ToArray();
+                    var message = Encoding.UTF8.GetString(body);
+                    Console.WriteLine($"{message}");
+                };
+
+                channel.BasicConsume("demo-queue", true, consumer);
+                Console.WriteLine("Consumer Started");
+                Console.ReadLine();
+            }
+        }
+    ```
+    And call the method **Consume** from **program.cs** class
+    ```
+    QueueConsumer.Consume(channel);
+    ```
+36. Now let's run the **RabbitMQ.Consumer** from two instances, and run the **RabbitMQ.Producer** then. You will notice that one instance of the consumer is getting the even messges and the other one is getting the odd messges. 
+So, if we have multiple consumers to a single queue, the messages will be evenly distributed across the consumers.
+RabbitMQ gives us the option to scale the service by providing the horizontal distribution. It also ensures 1 consumer gets unique message, 1 message does not go to multiple consumers.
+
+RabbitMQ:   
+- What is an Exchange?
+    - Exchanges are exactly the name suggests
+    - The are exchanges for message
+    - Just like a stock exchange, where people exchanges stocks, a seller sells stocks to a buyer. And exchange acts as a router of the stocks
+    - Similarly, Exchanges in RabbitMQ routes messages from a producer to a single consumer or multiple consumers
+    - An exchange uses **header attributes**, **routing keys** and **binding** to route messages
+    - In RabbitMQ, infact, messages are never published to a queue, they always goes through an Exchange. Event when we send message to a queue it uses default exchange. **[Exchange:(AMQP default)]**
+Types of Exchange:
+    - **Direct**: Direct exchange uses **routing key** in the header to identify which queue the message should be sent to. Routing key is a **header value** set by the **producer**. And consumers uses the **routing key** to **bind** to the **queue**. The exchange does **exact match** of routing key values.
+    - **Topic**: This is kind of **similar** to Direct. Topic exchange also uses **routing key**, but it does not do an **exact match** on the routing key, instead it does a **pattern match** based on pattern.
+    - **Header**: Header excahnge routes messages based on **header values** and are very similar to Topic exchange
+    - **Fanout**: As the name suggests, Fanout exchange routes messages to all the queues bound to it. It routes all the messages to all the queues, it does not look into the routing keys or anything else.
+
+37. Now, let's explore the **Direct Exchange**. Let's go to **RabbitMQ.Producer** and create a class named **DirectExchangePublisher** and add the following code.
+    ```
+    public static class DirectExchangePublisher
+    {
+        public static void Publish(IModel channel)
+        {
+            channel.ExchangeDeclare("demo-direct-exchange",ExchangeType.Direct);
+            
+            var count = 0;
+            while(true)
+            {
+                var message = new { Name = "Producer", Message = $"Hello! Count:{count}" };
+                var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+                channel.BasicPublish("demo-direct-exchange", "account-init", null, body);
+                count++;
+                Thread.Sleep(1000);
+            }
+        }
+    }
+    ```
+Also, modify the **program.cs** and call **DirectExchangePublisher** instead of **QueueProducer**
+    ```
+    //QueueProducer.Publish(channel);
+    DirectExchangePublisher.Publish(channel);
+    ```
+38. Now let's do the same thing for **RabbitMQ.Consumer** and create a new class called **DirectExchangeConsumer.cs** and add the following code.
+    ```
+    public static class DirectExchangeConsumer
+    {
+        public static void Consume(IModel channel)
+        {
+            channel.ExchangeDeclare("demo-direct-exchange", ExchangeType.Direct);
+            channel.QueueDeclare("demo-direct-queue",
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null);
+            channel.QueueBind("demo-direct-queue","demo-direct-exchange","account-init");
+
+            var consumer = new EventingBasicConsumer(channel);
+            consumer.Received += (sender, e) =>
+            {
+                var body = e.Body.ToArray();
+                var message = Encoding.UTF8.GetString(body);
+                Console.WriteLine($"{message}");
+            };
+
+            channel.BasicConsume("demo-direct-queue", true, consumer);
+            Console.WriteLine("Consumer Started");
+            Console.ReadLine();
+        }
+    }
+    ```
+Also modify the **program.cs** to call the **DirectExchangeConsumer** method
+
+39. Now let's run the consumer and check out the RabbitMQ server. You will find out your exchange **demo-direct-exchange** and exchange-queue **demo-direct-queue** in the server. And if you check out the exchange bindings, you will find out the exhange is binded to the queue with routing-key **account-init**
+Now run the **RabbitMQ.Producer** and check out messages coming from your defined exhange.
+
+40. Now, we will explore 2 more things, one is **Lifetime of a message** and the other one is **Prefetch count**. These are 2 important concepts for queue.
+**Prefetch Count**: When we have multiple consumers connected to a queue, then **Prefetch count** tell how many messages that perticular consumer can prefetch and process. If prefetch count is 2, if there are 10 messages to the queue, every consumer will take only 2 message and those 2 will be delivered only.
+Now let's implement these 2 concepts and start with implementing the **Lifetime of a message** by modifying the **DirectExchangePublisher.cs** in the **RabbitMQ.Producer**
+```
+    public static class DirectExchangePublisher
+    {
+        public static void Publish(IModel channel)
+        {
+            var ttl = new Dictionary<string, Object>
+            {
+                { "x-message-ttl", 30000 }
+            };
+            channel.ExchangeDeclare("demo-direct-exchange",ExchangeType.Direct, arguments: ttl);
+            
+            var count = 0;
+            while(true)
+            {
+                var message = new { Name = "Producer", Message = $"Hello! Count:{count}" };
+                var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+                channel.BasicPublish("demo-direct-exchange", "account-init", null, body);
+                count++;
+                Thread.Sleep(1000);
+            }
+        }
+    }
+```
+Now, let's implement the **Prefetch Count** in the **DirectExchangeConsumer.cs** in the **RabbitMQ.Consumer**
+```
+public static class DirectExchangeConsumer
+{
+    public static void Consume(IModel channel)
+    {
+        channel.ExchangeDeclare("demo-direct-exchange", ExchangeType.Direct);
+        channel.QueueDeclare("demo-direct-queue",
+                      durable: true,
+                      exclusive: false,
+                      autoDelete: false,
+                      arguments: null);
+        channel.QueueBind("demo-direct-queue","demo-direct-exchange","account-init");
+        channel.BasicQos(0,10,false);
+
+        var consumer = new EventingBasicConsumer(channel);
+        consumer.Received += (sender, e) =>
+        {
+            var body = e.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            Console.WriteLine($"{message}");
+        };
+
+        channel.BasicConsume("demo-direct-queue", true, consumer);
+        Console.WriteLine("Consumer Started");
+        Console.ReadLine();
+    }
+}
+```
+Now go to the RabbitMQ dashboard and delete the queue and the exchange. And then run both the consumer and producer, you will see the **Prefetch count** in the queue section and **TTL** in the exchange section.
+41. 
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  
 - https://www.youtube.com/watch?v=3AKqtggkaIA&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=2&ab_channel=DotNetCoreCentral
 - https://www.youtube.com/watch?v=w84uFSwulBI&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=3&ab_channel=DotNetCoreCentral
 - https://www.youtube.com/watch?v=Cm2psU-zN90&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=4&ab_channel=DotNetCoreCentral
+- https://www.youtube.com/watch?v=EtTPtnn6uKE&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=5&ab_channel=DotNetCoreCentral
