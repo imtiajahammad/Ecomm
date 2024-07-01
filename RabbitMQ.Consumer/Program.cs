@@ -1,8 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
-using System.Text;
-using Newtonsoft.Json;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 using RabbitMQ.Consumer;
 
 Console.WriteLine("Hello, World!");
@@ -16,4 +13,5 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 // QueueConsumer.Consume(channel);
-DirectExchangeConsumer.Consume(channel);
+//DirectExchangeConsumer.Consume(channel);
+TopicExchangeConsumer.Consume(channel);

@@ -11,4 +11,5 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 //QueueProducer.Publish(channel);
-DirectExchangePublisher.Publish(channel);
+//DirectExchangePublisher.Publish(channel);
+TopicExchangeProducer.Publish(channel);
