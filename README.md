@@ -943,7 +943,103 @@ using var channel = connection.CreateModel();
 HeaderExchangeProducer.Publish(channel);
 ``` 
 46. Now run both the **producer** and **consumer** and check if **consumer** can consume the messages. But if you change the **header** value in **producer** and run the applications, you will see, **exchange** will get the messages but the **consumer** will not get any messages
-47. 
+47. Create a new class **FanoutExchangeConsumer** in **RabbitMQ.Consumer** 
+```
+    public static void Consume(IModel channel)
+    {
+        channel.ExchangeDeclare("demo-fanout-exchange", ExchangeType.Fanout);
+        channel.QueueDeclare("demo-fanout-queue",
+                      durable: true,
+                      exclusive: false,
+                      autoDelete: false,
+                      arguments: null);
+
+
+        channel.QueueBind("demo-fanout-queue","demo-fanout-exchange",string.Empty);
+        channel.BasicQos(0,10,false);
+
+        var consumer = new EventingBasicConsumer(channel);
+        consumer.Received += (sender, e) =>
+        {
+            var body = e.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            Console.WriteLine($"{message}");
+        };
+
+        channel.BasicConsume("demo-fanout-queue", true, consumer);
+        Console.WriteLine("Fanout Consumer Started");
+        Console.ReadLine();
+    }
+```
+Also update the **program.cs** -
+```
+// See https://aka.ms/new-console-template for more information
+using RabbitMQ.Client;
+using RabbitMQ.Consumer;
+
+Console.WriteLine("Hello, World!");
+
+
+
+var factory = new ConnectionFactory
+{
+    Uri = new Uri("amqp://guest:guest@localhost:5672")
+};
+using var connection = factory.CreateConnection();
+using var channel = connection.CreateModel();
+// QueueConsumer.Consume(channel);
+//DirectExchangeConsumer.Consume(channel);
+//TopicExchangeConsumer.Consume(channel);
+//HeaderExchangeConsumer.Consume(channel);
+FanoutExchangeConsumer.Consume(channel);
+```
+48. Create a new class **FanoutExhangeProducer** in **RabbitMQ.Producer**
+```
+    public static void Publish(IModel channel)
+    {
+        var ttl = new Dictionary<string, Object>
+        {
+            { "x-message-ttl", 30000 }
+        };
+        channel.ExchangeDeclare("demo-fanout-exchange",ExchangeType.Fanout, arguments: ttl);
+        
+        var count = 0;
+        while(true)
+        {
+            var message = new { Name = "Producer", Message = $"Hello! Count:{count}" };
+            var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+            var properties = channel.CreateBasicProperties();
+            properties.Headers = new Dictionary<string, Object> { { "account", "new" } };/* not needed but kept it to prove that fanout will go to every consumer*/
+
+            channel.BasicPublish("demo-fanout-exchange", string.Empty, properties, body);
+            count++;
+            Thread.Sleep(1000);
+        }
+    }
+```
+Also update the **program.cs** -
+```
+// See https://aka.ms/new-console-template for more information
+using RabbitMQ.Client;
+using RabbitMQ.Producer;
+
+Console.WriteLine("Hello, World!");
+
+var factory = new ConnectionFactory
+    {
+        Uri = new Uri("amqp://guest:guest@localhost:5672")
+    };
+using var connection = factory.CreateConnection();
+using var channel = connection.CreateModel();
+//QueueProducer.Publish(channel);
+//DirectExchangePublisher.Publish(channel);
+//TopicExchangeProducer.Publish(channel);
+//HeaderExchangeProducer.Publish(channel);
+FanoutExchangeProducer.Publish(channel);
+```
+49. Now run multiple instances of **consumer** and run 1 instance of **producer**, will get to observe that every **consumer** will get the messages. If you observe that although the **producer** has **header** properties, **consumers** are getting all the messages. Even if you add **routing-key** in  **producer**, **consumers** will still receive the messages
+50. 
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  

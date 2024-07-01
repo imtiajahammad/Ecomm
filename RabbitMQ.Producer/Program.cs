@@ -13,4 +13,5 @@ using var channel = connection.CreateModel();
 //QueueProducer.Publish(channel);
 //DirectExchangePublisher.Publish(channel);
 //TopicExchangeProducer.Publish(channel);
-HeaderExchangeProducer.Publish(channel);
+//HeaderExchangeProducer.Publish(channel);
+FanoutExchangeProducer.Publish(channel);
