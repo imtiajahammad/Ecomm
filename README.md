@@ -848,7 +848,102 @@ TopicExchangeProducer.Publish(channel);
 
 43. Now run both the **producer** and **consumer** and you will see **consumer** is going to receive the messages. Now update the **routing-key** into **account.update** in  **producer** and check if messages are consumed in the consumer or not. Also try with **user.update** as **routing-key** in the **producer** and check if the messages are consumed or not.
 
-44. 
+44. Create a new class **HeaderExchangeConsumer** in **RabbitMQ.Consumer** 
+```
+    public static void Consume(IModel channel)
+    {
+        channel.ExchangeDeclare("demo-header-exchange", ExchangeType.Headers);
+        channel.QueueDeclare("demo-header-queue",
+                      durable: true,
+                      exclusive: false,
+                      autoDelete: false,
+                      arguments: null);
+
+        var header = new Dictionary<string, object> {{ "account", "new" }};
+
+        channel.QueueBind("demo-header-queue","demo-header-exchange",string.Empty,header);
+        channel.BasicQos(0,10,false);
+
+        var consumer = new EventingBasicConsumer(channel);
+        consumer.Received += (sender, e) =>
+        {
+            var body = e.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            Console.WriteLine($"{message}");
+        };
+
+        channel.BasicConsume("demo-header-queue", true, consumer);
+        Console.WriteLine("Header Consumer Started");
+        Console.ReadLine();
+    }
+```
+Also update the **program.cs** file
+```
+// See https://aka.ms/new-console-template for more information
+using RabbitMQ.Client;
+using RabbitMQ.Consumer;
+
+Console.WriteLine("Hello, World!");
+
+
+
+var factory = new ConnectionFactory
+{
+    Uri = new Uri("amqp://guest:guest@localhost:5672")
+};
+using var connection = factory.CreateConnection();
+using var channel = connection.CreateModel();
+// QueueConsumer.Consume(channel);
+//DirectExchangeConsumer.Consume(channel);
+//TopicExchangeConsumer.Consume(channel);
+HeaderExchangeConsumer.Consume(channel);
+```
+45. Create a new class **HeaderExchangeProducer** in **RabbitMQ.Producer** 
+```
+    public static void Publish(IModel channel)
+    {
+        var ttl = new Dictionary<string, Object>
+        {
+            { "x-message-ttl", 30000 }
+        };
+        channel.ExchangeDeclare("demo-header-exchange",ExchangeType.Headers, arguments: ttl);
+        
+        var count = 0;
+        while(true)
+        {
+            var message = new { Name = "Producer", Message = $"Hello! Count:{count}" };
+            var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
+
+            var properties = channel.CreateBasicProperties();
+            properties.Headers = new Dictionary<string, Object> { { "account", "new" } };
+
+            channel.BasicPublish("demo-header-exchange", string.Empty, properties, body);
+            count++;
+            Thread.Sleep(1000);
+        }
+    }
+```
+Also update the **program.cs** file
+```
+// See https://aka.ms/new-console-template for more information
+using RabbitMQ.Client;
+using RabbitMQ.Producer;
+
+Console.WriteLine("Hello, World!");
+
+var factory = new ConnectionFactory
+    {
+        Uri = new Uri("amqp://guest:guest@localhost:5672")
+    };
+using var connection = factory.CreateConnection();
+using var channel = connection.CreateModel();
+//QueueProducer.Publish(channel);
+//DirectExchangePublisher.Publish(channel);
+//TopicExchangeProducer.Publish(channel);
+HeaderExchangeProducer.Publish(channel);
+``` 
+46. Now run both the **producer** and **consumer** and check if **consumer** can consume the messages. But if you change the **header** value in **producer** and run the applications, you will see, **exchange** will get the messages but the **consumer** will not get any messages
+47. 
 ---
 Reference:   
 - https://www.youtube.com/watch?v=atJkRk_MwdU&list=PLXCqSX1D2fd_6bna8uP4-p3Y8wZxyB75G&index=1&ab_channel=DotNetCoreCentral  
